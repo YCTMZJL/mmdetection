@@ -72,6 +72,7 @@ def gen_crop_img_2_coco(list_path=None, root_path=None, save_root_path=None, war
     annotations = []
     images =[]
     object_count = 0
+    obj_cnt = 0
 
 
     if not os.path.exists(image_dir):
@@ -84,12 +85,15 @@ def gen_crop_img_2_coco(list_path=None, root_path=None, save_root_path=None, war
                 img_path = img_path.strip('\n')
                 txt_path = img_path[:-4] + '.txt'
                 image = cv2.imread(img_path)
+                if not os.path.exists(txt_path): continue
+                char_start = 0
                 with open(txt_path, 'r') as txt_file:
                     txt_lines =  txt_file.readlines()
                     #with open(pkl_save_path, 'wb') as wpkl:
                     if True:
                         # save only line
                         total_word_lines = int(txt_lines[0].strip('\n'))
+                        char_start = total_word_lines + 2
                         for idx in range(total_word_lines):
                             txt_line = txt_lines[idx+1]
                             txt_line = txt_line.strip('\n')
@@ -142,18 +146,18 @@ def gen_crop_img_2_coco(list_path=None, root_path=None, save_root_path=None, war
                             print(cnt, word)
 
                             #for char
-                            obj_cnt = 0
                             for char_idx in range(len(word)):
-                                cur_char_idx = total_word_lines + 2 + cur_char_idx
-                                char_line = txt_line[cur_char_idx]
+                                cur_char_idx = char_start + char_idx
+                                char_line = txt_lines[cur_char_idx]
                                 char_line = char_line.strip('\n').split(' ')
                                 char_label = char_line[0]
+                                print(char_idx, char_label)
                                 char_poly = np.float32(char_line[1:])
-                                char_poly = char_poly.reshape(4,2).dtype(np.int) 
+                                char_poly = (char_poly.reshape(4,2)).astype(np.int)
                                 if warp:
                                     pass
                                 else:
-                                    char_poly = char_poly - np.array([xmin, ymin]) 
+                                    char_poly = char_poly - np.array([xmin, ymin])
                                     char_xmin = char_poly[:, 0].min()
                                     char_xmax = char_poly[:, 0].max()
                                     char_ymin = char_poly[:, 1].min()
@@ -167,6 +171,7 @@ def gen_crop_img_2_coco(list_path=None, root_path=None, save_root_path=None, war
                                         iscrowd=0)
                                 annotations.append(data_anno)
                                 obj_cnt += 1
+                            char_start += len(word)
                             #with open(gt_json_path, 'w') as wf:
                             #    json.dump(gts, wf)
  
@@ -178,8 +183,8 @@ def gen_crop_img_2_coco(list_path=None, root_path=None, save_root_path=None, war
             annotations = annotations,
             category_id=[{'id':0, 'name':'character'}])
     with open(gt_json_path, 'w') as wf:
-        json.dump(coco_format_json, wf)
- 
+        mmcv.dump(coco_format_json, wf)
+
 def convert_synthtext_to_coco(ann_file, out_file, image_prefix):
     data_infos = mmcv.load(ann_file)
 
@@ -229,8 +234,8 @@ def convert_synthtext_to_coco(ann_file, out_file, image_prefix):
         categories=[{'id':0, 'name': 'character'}])
     mmcv.dump(coco_format_json, out_file)
 
-if __name__ = '__main__':
-    list_path = 
-    root_path = 
-    save_root_path =
+if __name__ == '__main__':
+    list_path = '/mnt/storage01/Jerry-local/ocr-test/synth_text_chinese/dataset/filter_synth/synthtext_0917_ch/list.txt'
+    root_path = '/mnt/storage01/Jerry-local/ocr-test/synth_text_chinese/dataset/filter_synth/synthtext_0917_ch'
+    save_root_path ='./test_dataset'
     gen_crop_img_2_coco(list_path=list_path, root_path=root_path, save_root_path=save_root_path)
