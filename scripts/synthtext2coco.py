@@ -78,7 +78,7 @@ def gen_crop_img_2_coco(list_path=None, root_path=None, save_root_path=None, war
     if not os.path.exists(image_dir):
         os.makedirs(image_dir)
     with open(list_path, 'r') as list_file:
-        for list_line in list_file:
+        for list_line in list_file.readlines()[:]:
             if True:
                 list_line = list_line.strip('\n')
                 img_path = os.path.join(root_path, list_line)
@@ -164,26 +164,24 @@ def gen_crop_img_2_coco(list_path=None, root_path=None, save_root_path=None, war
                                     char_ymax = char_poly[:, 1].max()
                                 data_anno = dict(
                                         image_id = image_id,
-                                        id=obj_cnt,
-                                        bbox = [char_xmin, char_ymin, char_xmax - char_xmin, char_ymax - char_ymin],
-                                        area=(char_ymax - char_ymin)*(char_xmax - char_xmin),
-                                        segmentation = [char_poly],
+                                        id = obj_cnt,
+                                        bbox = [int(char_xmin), int(char_ymin), int(char_xmax - char_xmin), int(char_ymax - char_ymin)],
+                                        area = int((char_ymax - char_ymin)*(char_xmax - char_xmin)),
+                                        category_id = 0,
+                                        #segmentation = [char_poly],
                                         iscrowd=0)
                                 annotations.append(data_anno)
                                 obj_cnt += 1
                             char_start += len(word)
-                            #with open(gt_json_path, 'w') as wf:
-                            #    json.dump(gts, wf)
- 
             #except:
             #    print('*********err********', list_line)
             #    traceback.print_exc()
     coco_format_json = dict(
             images = images,
             annotations = annotations,
-            category_id=[{'id':0, 'name':'character'}])
+            categories=[{'id':0, 'name':'character'}])
     with open(gt_json_path, 'w') as wf:
-        mmcv.dump(coco_format_json, wf)
+        json.dump(coco_format_json, wf)
 
 def convert_synthtext_to_coco(ann_file, out_file, image_prefix):
     data_infos = mmcv.load(ann_file)
