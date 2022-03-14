@@ -78,7 +78,7 @@ def gen_crop_img_2_coco(list_path=None, root_path=None, save_root_path=None, war
     if not os.path.exists(image_dir):
         os.makedirs(image_dir)
     with open(list_path, 'r') as list_file:
-        for list_line in list_file.readlines()[:]:
+        for list_line in list_file.readlines()[:100]:
             if True:
                 list_line = list_line.strip('\n')
                 img_path = os.path.join(root_path, list_line)
@@ -133,13 +133,14 @@ def gen_crop_img_2_coco(list_path=None, root_path=None, save_root_path=None, war
                                     np.swapaxes(cropped_iamge, 0, 1), 0)
  
                             #save_img
-                            cv2.imwrite(os.path.join(image_dir, str(cnt) +'.jpg'), cropped_iamge)
+                            img_name = str(cnt) + '.jpg'
+                            cv2.imwrite(os.path.join(image_dir, img_name), cropped_iamge)
                             #gts.append(word)
                             image_id = cnt
                             cnt += 1
                             images.append(dict(
                                 id = image_id,
-                                file_name = '',
+                                file_name = img_name,
                                 height = cropped_iamge.shape[0],
                                 width = cropped_iamge.shape[1]
                                 ))
@@ -182,6 +183,107 @@ def gen_crop_img_2_coco(list_path=None, root_path=None, save_root_path=None, war
             categories=[{'id':0, 'name':'character'}])
     with open(gt_json_path, 'w') as wf:
         json.dump(coco_format_json, wf)
+
+def gen_crop_img_mat_2_coco(root_path=None, save_root_path=None):
+    if not os.path.exists(save_root_path):
+        os.makedirs(save_root_path)
+    cnt = 0
+    gts = []
+    gt_json_path = os.path.join(save_root_path, 'annotations_coco_format.json')
+    image_dir = os.path.join(save_root_path, 'crops_images')
+    
+    #for coco format
+    annotations = []
+    images =[]
+    obj_cnt = 0
+
+
+    if not os.path.exists(image_dir):
+        os.makedirs(image_dir)
+    from scipy import io
+    gt_dict = io.loadmat(root_path + '/gt.mat')
+    print('suceed in loading gt mat')
+    if True:
+        for name_id, file_name in enumerate(gt_dict['imnames'][0][:]):
+            try:
+            #if True:
+                file_name = file_name[0]
+                #print(name_id, file_name)
+                img_path = os.path.join(root_path, file_name)
+                img = cv2.imread(img_path)
+
+                #record_word
+                word_names = []
+                for wns in gt_dict['txt'][0][name_id]:
+                    words = wns.strip().split(' ')
+                    for word in words:
+                        word = word.split('\n')
+                        for w in word:
+                            if len(w) > 0:
+                                word_names.append(w)
+
+                xw = gt_dict['wordBB'][0][name_id][0]
+                yw = gt_dict['wordBB'][0][name_id][1]
+                xc = gt_dict['charBB'][0][name_id][0]
+                yc = gt_dict['charBB'][0][name_id][1]
+
+                char_id = 0
+                for word_id, word in enumerate(word_names):
+                    word_ymin = int(yw[:, word_id].min())
+                    word_xmin = int(xw[:, word_id].min())
+                    word_ymax = int(yw[:, word_id].max())
+                    word_xmax = int(xw[:, word_id].max())
+                    word_img = img[word_ymin: word_ymax, word_xmin: word_xmax]
+                    cropped_iamge = word_img.copy()
+
+                    #save_img
+                    img_name = str(cnt) + '.jpg'
+                    cv2.imwrite(os.path.join(image_dir, img_name), cropped_iamge)
+                    #gts.append(word)
+                    image_id = cnt
+                    cnt += 1
+                    images.append(dict(
+                    id = image_id,
+                    file_name = img_name,
+                    height = cropped_iamge.shape[0],
+                    width = cropped_iamge.shape[1]
+                    ))
+                    #print(cnt, word)
+
+                    #for char
+                    for char in word:
+                        char_ymin = int(yc[:, char_id].min())
+                        char_xmin = int(xc[:, char_id].min())
+                        char_ymax = int(yc[:, char_id].max())
+                        char_xmax = int(xc[:, char_id].max())
+                        #char_img = img[ymin:ymax, xmin:xmax]
+                        char_id += 1
+
+                        char_ymin = char_ymin - word_ymin
+                        char_xmin = char_xmin - word_xmin
+                        char_ymax = char_ymax - word_ymin
+                        char_xmax = char_xmax - word_xmin
+
+                        data_anno = dict(
+                            image_id = image_id,
+                            id = obj_cnt,
+                            bbox = [int(char_xmin), int(char_ymin), int(char_xmax - char_xmin), int(char_ymax - char_ymin)],
+                            area = int((char_ymax - char_ymin)*(char_xmax - char_xmin)),
+                            category_id = 0,
+                            #segmentation = [char_poly],
+                            iscrowd=0)
+                        annotations.append(data_anno)
+                        obj_cnt += 1
+            except:
+                print('*********err********')
+                traceback.print_exc()
+    coco_format_json = dict(
+            images = images,
+            annotations = annotations,
+            categories=[{'id':0, 'name':'character'}])
+    with open(gt_json_path, 'w') as wf:
+        json.dump(coco_format_json, wf)
+
 
 def convert_synthtext_to_coco(ann_file, out_file, image_prefix):
     data_infos = mmcv.load(ann_file)
@@ -233,7 +335,11 @@ def convert_synthtext_to_coco(ann_file, out_file, image_prefix):
     mmcv.dump(coco_format_json, out_file)
 
 if __name__ == '__main__':
-    list_path = '/mnt/storage01/Jerry-local/ocr-test/synth_text_chinese/dataset/filter_synth/synthtext_0917_ch/list.txt'
-    root_path = '/mnt/storage01/Jerry-local/ocr-test/synth_text_chinese/dataset/filter_synth/synthtext_0917_ch'
-    save_root_path ='./test_dataset'
-    gen_crop_img_2_coco(list_path=list_path, root_path=root_path, save_root_path=save_root_path)
+    root_path = './dataset/SynthText'
+    save_root_path = './synthdataset0308'
+    gen_crop_img_mat_2_coco(root_path, save_root_path)
+    
+    #list_path = '/mnt/storage01/Jerry-local/ocr-test/synth_text_chinese/dataset/filter_synth/synthtext_0917_ch/list.txt'
+    #root_path = '/mnt/storage01/Jerry-local/ocr-test/synth_text_chinese/dataset/filter_synth/synthtext_0917_ch'
+    #save_root_path ='./test_dataset'
+    #gen_crop_img_2_coco(list_path=list_path, root_path=root_path, save_root_path=save_root_path)
